@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import { store } from "../stores/store";
 import { CreateTodoItem, TodoItem } from "../common/interfaces/TodoItemInterface";
 
-
 axios.defaults.baseURL = import.meta.env.VITE_APP_API_URL;
 
 const responseBody = <T>(response: AxiosResponse<T>) => response.data;
@@ -23,25 +22,24 @@ axios.interceptors.response.use(async response => {
     if (status) {
         switch (status) {
             case 400:
-                toast.error(data)
+                toast.error(data);
                 break;
             case 401:
-                if (status === 401 && headers['www-authenticate']?.startsWith('Bearer error="invalid_token"')) {
+                if (headers['www-authenticate']?.startsWith('Bearer error="invalid_token"')) {
                     store.userStore.logout();
                     toast.info('Session expired - please login again');
-                    break;
+                } else {
+                    toast.error('Error code 401: Unauthorized');
                 }
-                toast.error('Error code 401: Unauthorized')
                 break;
             case 403:
-                toast.error('Error code 403: Forbidden')
+                toast.error('Error code 403: Forbidden');
                 break;
             case 404:
-                toast.error('Error code 404: Not found')
+                toast.error('Error code 404: Not found');
                 break;
             case 500:
                 store.commonStore.setServerError(data);
-                // router navigates to /server-error
                 break;
         }
     }
@@ -64,16 +62,13 @@ const AccountRequests = {
 }
 
 const TodoItemsRequests = {
-    getAll: () => axios.get(`/TodoItems`).then(response => response.data),
- // Adjust the function to take CreateTodoItem and return TodoItem
-create: (todoItem: CreateTodoItem): Promise<TodoItem> => 
-    axios.post(`/TodoItems`, todoItem).then(response => response.data),
-
+    getAll: () => requests.get<TodoItem[]>('/TodoItems'), 
+    create: (todoItem: CreateTodoItem): Promise<TodoItem> => 
+        requests.post<TodoItem>('/TodoItems', todoItem), 
     getById: (id: number) => requests.get<TodoItem>(`/TodoItems/${id}`),
-    update: (id: number, todoItem: TodoItem) => requests.put<TodoItem>(`/TtodoItems/${id}`, todoItem),
+    update: (id: number, todoItem: TodoItem) => requests.put<TodoItem>(`/TodoItems/${id}`, todoItem),
     delete: (id: number) => requests.del<void>(`/TodoItems/${id}`)
 };
-
 
 const agent = {
     AccountRequests,

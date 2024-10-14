@@ -1,111 +1,63 @@
-import { makeAutoObservable, runInAction } from "mobx";
-import { store } from "./store";
+import { create } from "zustand";
 import { User } from "../common/interfaces/UserInterface";
-import { AuthUserDto, LoginRequestDto } from "../common/interfaces/AuthInterface";
+import { LoginRequestDto } from "../common/interfaces/AuthInterface";
 import agent from "../api/agent";
 import { router } from "../router/Router";
 
-export default class UserStore {
-    user: User | null = null;
-    loading = false;
-    refreshTokenTimeout: NodeJS.Timeout | null = null;
+interface UserStoreState {
+    user: User | null;
+    loading: boolean;
+    isLoggedIn: () => boolean;
+    login: (email: string, password: string) => Promise<void>;
+    logout: () => void;
+    getUser: () => Promise<void>;
+}
 
-    constructor() {
-        makeAutoObservable(this);
-    }
+export const useUserStore = create<UserStoreState>((set, get) => ({
+    user: null,
+    loading: false,
 
-    get isLoggedIn() {
-        return !!this.user;
-    }
+    isLoggedIn: () => !!get().user,
 
-   
-
-    login = async (email: string, password: string) => {
-        const loginRequest: LoginRequestDto = {
-            email,
-            password
-        };
-        const response = await agent.AccountRequests.login(loginRequest);
-        const user: User = {
-            id: response.id,
-            name: response.name,
-            email: response.email,
-        }
-        store.commonStore.setToken(response.token);
-        runInAction(() => {
-            this.startRefreshTokenTimer({...user, token: response.token });
-            this.user = user;
-            this.getUser();
-            router.navigate("/");
-        });
-    };
-
-    // register = async (user: RegisterRequestDto) => {
-    //     try {
-    //         const response = await agent.AccountRequests.register(user);
-    //         store.commonStore.setToken(response.token);
-    //         const newUser: User = {
-    //             name: response.name,
-    //             surname: response.surname,
-    //             email: response.email,
-    //             role: response.role
-    //         }
-    //         runInAction(() => {
-    //             this.user = newUser;
-    //         });
-    //     } catch (error) {
-    //         console.log(error);
-    //     }
-    // };
-
-    logout = () => {
-        store.commonStore.setToken(null);
-        this.user = null;
-        this.stopRefreshTokenTimer();
-        router.navigate("/");
-    }
-
-    getUser = async () => {
+    login: async (email: string, password: string) => {
+        set({ loading: true });
         try {
-            const response = await agent.AccountRequests.current();
-            store.commonStore.setToken(response.token);
+            const loginRequest: LoginRequestDto = { email, password };
+            const response = await agent.AccountRequests.login(loginRequest); 
             const user: User = {
                 id: response.id,
                 name: response.name,
                 email: response.email,
-            }
-            runInAction(() => {
-                this.startRefreshTokenTimer({...response, token: response.token });
-                this.user = user;
-            });
+            };
+            set({ user });
+            await get().getUser(); 
+            router.navigate("/");
         } catch (error) {
-            console.log(error);
+            console.error(error);
+        } finally {
+            set({ loading: false });
         }
-    }
+    },
 
-    refreshToken = async () => {
-        this.stopRefreshTokenTimer();
+    logout: () => {
+        set({ user: null });
+        router.navigate("/"); 
+    },
+
+    getUser: async () => {
+        set({ loading: true });
         try {
-            const user = await agent.AccountRequests.refreshToken();
-            runInAction(() => {
-                this.user = user;
-            });
-            store.commonStore.setToken(user.token);
-            this.startRefreshTokenTimer(user);
+            const response = await agent.AccountRequests.current();
+            const user: User = {
+                id: response.id,
+                name: response.name,
+                email: response.email,
+            };
+            set({ user });
         } catch (error) {
-            console.log(error);
+            console.error(error);
+        } finally {
+            set({ loading: false });
         }
-    }
-
-    private startRefreshTokenTimer = (user: AuthUserDto) => {
-        const jwtToken = JSON.parse(atob(user.token.split(".")[1]));
-        const expires = new Date(jwtToken.exp * 1000);
-        const timeout = expires.getTime() - Date.now() - (30 * 1000);
-        this.refreshTokenTimeout = setTimeout(this.refreshToken, timeout);
-    }
-
-    private stopRefreshTokenTimer = () => {
-        if (this.refreshTokenTimeout)
-            clearTimeout(this.refreshTokenTimeout);
-    };
-}
+    },
+}));

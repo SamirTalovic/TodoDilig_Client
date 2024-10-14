@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { CreateTodoItem, TodoItem } from '../common/interfaces/TodoItemInterface';
-import { store } from '../stores/store'; // Importing MobX store
+import { store } from '../stores/store';
 import TodoItemStore from '../stores/todoStore';
 import * as signalR from "@microsoft/signalr";
 
@@ -10,15 +10,12 @@ const HomePage = observer(() => {
     const [description, setDescription] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Accessing MobX stores
     const todoItemStore = store.todoStore as TodoItemStore;
-    const userStore = store.userStore;
 
-    // Fetch all todo items
     const fetchTodoItems = async () => {
         setLoading(true);
         try {
-            await todoItemStore.loadTodoItems(); // Use store method to load items
+            await todoItemStore.loadTodoItems();
         } catch (error) {
             console.error('Failed to fetch todo items:', error);
         } finally {
@@ -26,38 +23,13 @@ const HomePage = observer(() => {
         }
     };
 
-    // Handle create todo item
-   // Creating TodoItem without 'id' initially
-   const handleCreateTodo = async () => {
-    if (!title || !description) {
-        alert('Title and description are required.');
-        return;
-    }
-
-    try {
-        const newTodoItem: CreateTodoItem = {
-            title,
-            description,
-            createdAt: new Date(),
-            appUserId: store.userStore.user?.id || '', // Set the appUserId from the current user
-        };
-
-        await todoItemStore.createTodoItem(newTodoItem);
-        alert('Todo created successfully!');
-        setTitle('');
-        setDescription('');
-    } catch (error) {
-        console.error('Failed to create todo item:', error);
-    }
-};
-
-
     useEffect(() => {
-        fetchTodoItems(); // Fetch todo items on component mount
+        fetchTodoItems();   
 
-        // Initialize SignalR connection and handlers
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl(`${import.meta.env.VITE_APP_API_URL}/todoHub`)
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl(`${import.meta.env.VITE_APP_API_URL}/todoHub`, {
+                withCredentials: true
+            })
             .withAutomaticReconnect()
             .build();
 
@@ -72,6 +44,29 @@ const HomePage = observer(() => {
             connection.stop().catch(err => console.error("SignalR Disconnection Error: ", err));
         };
     }, [todoItemStore]);
+
+    const handleCreateTodo = async () => {
+        if (!title || !description) {
+            alert('Title and description are required.');
+            return;
+        }
+
+        try {
+            const newTodoItem: CreateTodoItem = {
+                title,
+                description,
+                createdAt: new Date(),
+                appUserId: store.userStore.user?.id || '',
+            };
+
+            await todoItemStore.createTodoItem(newTodoItem);
+            alert('Todo created successfully!');
+            setTitle('');
+            setDescription('');
+        } catch (error) {
+            console.error('Failed to create todo item:', error);
+        }
+    };
 
     return (
         <div>
